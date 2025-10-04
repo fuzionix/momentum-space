@@ -1,0 +1,104 @@
+import datetime
+import pandas as pd
+import yfinance as yf
+from typing import List, Tuple, Optional
+
+def fetch_stock_data(
+    tickers: List[str], 
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    period: str = "5y"
+) -> pd.DataFrame:
+    """
+    Fetch historical stock data for the given tickers.
+    
+    Args:
+        tickers (List[str]): List of stock ticker symbols.
+        start_date (Optional[str]): Start date in 'YYYY-MM-DD' format. If None, period is used.
+        end_date (Optional[str]): End date in 'YYYY-MM-DD' format. If None, today is used.
+        period (str): Period to fetch data for if start_date is None. Default is "5y" (5 years).
+    
+    Returns:
+        output (pd.DataFrame): DataFrame with adjusted closing prices for each ticker.
+    """
+    if end_date is None:
+        end_date = datetime.datetime.now().strftime('%Y-%m-%d')
+    
+    # Fetch data based on dates or period
+    if start_date:
+        data = yf.download(tickers, start=start_date, end=end_date, progress=False)
+    else:
+        data = yf.download(tickers, period=period, end=end_date, progress=False)
+    
+        if isinstance(data.columns, pd.MultiIndex):
+            # Get the 'Close' or 'Adj Close' price from the MultiIndex
+            if ('Adj Close', tickers[0]) in data.columns:
+                return pd.DataFrame({tickers[0]: data[('Adj Close', tickers[0])]})
+            elif ('Close', tickers[0]) in data.columns:
+                return pd.DataFrame({tickers[0]: data[('Close', tickers[0])]})
+            else:
+                raise ValueError("No valid price column found for ticker.")
+        else:
+            # Original logic for flat column structure
+            if 'Adj Close' in data.columns:
+                return pd.DataFrame({tickers[0]: data['Adj Close']})
+            elif 'Close' in data.columns:
+                return pd.DataFrame({tickers[0]: data['Close']})
+            else:
+                raise ValueError("No valid price column found for ticker.")
+    
+    # For multiple tickers, extract the Adj Close column
+    if 'Adj Close' in data.columns:
+        return data['Adj Close']
+    return data['Close']
+
+
+def fetch_benchmark_data(
+    benchmark_ticker: str = "^GSPC", # S&P 500 by default
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    period: str = "5y"
+) -> pd.Series:
+    """
+    Fetch benchmark data (default is S&P 500).
+    
+    Args:
+        benchmark_ticker (str): Ticker symbol for the benchmark.
+        start_date (Optional[str]): Start date in 'YYYY-MM-DD' format. If None, period is used.
+        end_date (Optional[str]): End date in 'YYYY-MM-DD' format. If None, today is used.
+        period (str): Period to fetch data for if start_date is None. Default is "5y" (5 years).
+    
+    Returns:
+        output (pd.Series): Series with benchmark's adjusted closing prices.
+    """
+    benchmark_data = fetch_stock_data([benchmark_ticker], start_date, end_date, period)
+    return benchmark_data[benchmark_ticker]
+
+
+def validate_tickers(tickers: List[str]) -> Tuple[List[str], List[str]]:
+    """
+    Validate if the provided tickers exist in Yahoo Finance.
+    
+    Args:
+        tickers (List[str]): List of ticker symbols to validate.
+    
+    Returns:
+        output (Tuple[List[str], List[str]]): Tuple of (valid_tickers, invalid_tickers).
+    """
+    valid_tickers = []
+    invalid_tickers = []
+    
+    for ticker in tickers:
+        ticker = ticker.strip().upper()
+        stock = yf.Ticker(ticker)
+        # Try to get some basic info to see if the ticker is valid
+        try:
+            info = stock.info
+            if 'symbol' in info:
+                valid_tickers.append(ticker)
+            else:
+                invalid_tickers.append(ticker)
+        except:
+            invalid_tickers.append(ticker)
+    
+    return valid_tickers, invalid_tickers
