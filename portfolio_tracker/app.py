@@ -231,7 +231,7 @@ def create_ui():
                 cumulative_returns_table = gr.DataFrame(label="累積回報（每月）")
                 
             with gr.TabItem("最大回撤"):
-                drawdowns_plot = gr.LinePlot(
+                drawdowns_plot = gr.BarPlot(
                     label="最大回撤圖",
                     x="日期",
                     y="最大回撤 (%)",
@@ -266,6 +266,7 @@ def create_ui():
                 
             with gr.TabItem("績效指標"):
                 metrics_table = gr.DataFrame()
+                gr.Markdown("> **投資組合：** 投資組合在所選期間的總回報率。")
 
             with gr.TabItem("基準比較"):
                 with gr.Row():
@@ -275,6 +276,12 @@ def create_ui():
                     with gr.Column():
                         gr.Markdown("### 相對績效")
                         relative_metrics_table = gr.DataFrame()
+                gr.Markdown(
+                """
+                > - **追蹤誤差**：投資組合與基準回報的標準差。
+                > - **資訊比率**：超額報酬與追蹤誤差的比率。
+                """
+                )
         
         analyze_btn.click(
             fn=process_portfolio,
@@ -310,4 +317,4 @@ def create_ui():
 
 if __name__ == "__main__":
     app = create_ui()
-    app.launch()
+    app.launch(share=True)

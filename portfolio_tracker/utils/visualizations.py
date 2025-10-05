@@ -43,10 +43,10 @@ def format_cumulative_returns_data(
         resample_rule = '2W'
         date_format = '%Y-%m-%d'
     elif period in ['3y', '5y']:
-        resample_rule = 'M'
+        resample_rule = 'ME'
         date_format = '%Y-%m'
     else:
-        resample_rule = 'Q'
+        resample_rule = 'QE'
         date_format = '%Y-%m'
     
     # Resample to reduce data points for better display
@@ -96,10 +96,10 @@ def format_drawdowns_data(
         resample_rule = '2W'
         date_format = '%Y-%m-%d'
     elif period in ['3y', '5y']:
-        resample_rule = 'M'
+        resample_rule = 'ME'
         date_format = '%Y-%m'
     else:
-        resample_rule = 'Q'
+        resample_rule = 'QE'
         date_format = '%Y-%m'
     
     # Resample to reduce data points
@@ -160,10 +160,10 @@ def format_returns_distribution_data(
         resample_rule = 'W'
         label = '週'
     elif period in ['6mo', '1y', '3y']:
-        resample_rule = 'M'
+        resample_rule = 'ME'
         label = '月份'
     else:
-        resample_rule = 'Q'
+        resample_rule = 'QE'
         label = '季度'
     
     # Create periodic returns dataframe
@@ -173,7 +173,7 @@ def format_returns_distribution_data(
     
     if resample_rule == 'W':
         periodic_returns.index = periodic_returns.index.strftime('%Y-%m-%d')
-    elif resample_rule == 'M':
+    elif resample_rule == 'ME':
         periodic_returns.index = periodic_returns.index.strftime('%Y-%m')
     else:
         periodic_returns.index = periodic_returns.index.strftime('%Y-%m')
@@ -188,7 +188,7 @@ def format_returns_distribution_data(
         
         if resample_rule == 'W':
             benchmark_periodic.index = benchmark_periodic.index.strftime('%Y-%m-%d')
-        elif resample_rule == 'M':
+        elif resample_rule == 'ME':
             benchmark_periodic.index = benchmark_periodic.index.strftime('%Y-%m')
         else:
             benchmark_periodic.index = benchmark_periodic.index.strftime('%Y-%m')
