@@ -3,14 +3,16 @@ from typing import Dict, Optional
 
 def format_cumulative_returns_data(
     portfolio_cumulative_returns: pd.Series,
-    benchmark_cumulative_returns: Optional[pd.Series] = None
+    benchmark_cumulative_returns: Optional[pd.Series] = None,
+    period: str = "5y"
 ) -> pd.DataFrame:
     """
-    Format cumulative returns data for tabular display.
+    Format cumulative returns data for tabular display with period-appropriate date sampling.
     
     Args:
         portfolio_cumulative_returns (pd.Series): Cumulative returns of the portfolio.
         benchmark_cumulative_returns (Optional[pd.Series]): Cumulative returns of the benchmark.
+        period (str): Time period of the data ('1mo', '3mo', '6mo', '1y', '3y', '5y', '10y', 'max').
     
     Returns:
         output (pd.DataFrame): DataFrame with formatted cumulative returns data.
@@ -33,21 +35,37 @@ def format_cumulative_returns_data(
         benchmark_pct = (aligned_benchmark * 100).round(2)
         data['基準 (%)'] = benchmark_pct.values
     
-    # Resample to reduce data points for better display (monthly data)
-    monthly_data = data.set_index('日期').resample('M').last().reset_index()
-    monthly_data['日期'] = monthly_data['日期'].dt.strftime('%Y-%m-%d')
+    # Determine appropriate resampling frequency based on period
+    if period in ['1mo', '3mo']:
+        resample_rule = 'W'
+        date_format = '%m-%d'
+    elif period in ['6mo', '1y']:
+        resample_rule = '2W'
+        date_format = '%Y-%m-%d'
+    elif period in ['3y', '5y']:
+        resample_rule = 'M'
+        date_format = '%Y-%m'
+    else:
+        resample_rule = 'Q'
+        date_format = '%Y-%m'
+    
+    # Resample to reduce data points for better display
+    resampled_data = data.set_index('日期').resample(resample_rule).last().reset_index()
+    resampled_data['日期'] = resampled_data['日期'].dt.strftime(date_format)
 
-    return monthly_data
+    return resampled_data
 
 
 def format_drawdowns_data(
-    portfolio_returns: pd.Series
+    portfolio_returns: pd.Series,
+    period: str = "5y"
 ) -> pd.DataFrame:
     """
-    Format drawdowns data for tabular display.
+    Format drawdowns data for tabular display with period-appropriate date sampling.
     
     Args:
         portfolio_returns (pd.Series): Returns of the portfolio.
+        period (str): Time period of the data.
     
     Returns:
         output (pd.DataFrame): DataFrame with drawdown information.
@@ -70,16 +88,31 @@ def format_drawdowns_data(
         '最大回撤 (%)': drawdowns_pct.values
     })
     
-    # Resample to reduce data points (monthly data)
-    monthly_data = data.set_index('日期').resample('M').min().reset_index()
-    monthly_data['日期'] = monthly_data['日期'].dt.strftime('%Y-%m-%d')
+    # Determine appropriate resampling frequency based on period
+    if period in ['1mo', '3mo']:
+        resample_rule = 'W'
+        date_format = '%m-%d'
+    elif period in ['6mo', '1y']:
+        resample_rule = '2W'
+        date_format = '%Y-%m-%d'
+    elif period in ['3y', '5y']:
+        resample_rule = 'M'
+        date_format = '%Y-%m'
+    else:
+        resample_rule = 'Q'
+        date_format = '%Y-%m'
+    
+    # Resample to reduce data points
+    resampled_data = data.set_index('日期').resample(resample_rule).min().reset_index()
+    resampled_data['日期'] = resampled_data['日期'].dt.strftime(date_format)
 
-    return monthly_data
+    return resampled_data
 
 
 def format_returns_distribution_data(
     portfolio_returns: pd.Series,
-    benchmark_returns: Optional[pd.Series] = None
+    benchmark_returns: Optional[pd.Series] = None,
+    period: str = "5y",
 ) -> Dict[str, pd.DataFrame]:
     """
     Format returns distribution data for tabular display.
@@ -87,6 +120,7 @@ def format_returns_distribution_data(
     Args:
         portfolio_returns (pd.Series): Returns of the portfolio.
         benchmark_returns (Optional[pd.Series]): Returns of the benchmark.
+        period (str): Time period of the data ('1mo', '3mo', '6mo', '1y', '3y', '5y', '10y', 'max').
     
     Returns:
         output (Dict[str, pd.DataFrame]): Dictionary with statistical summary DataFrames.
@@ -121,32 +155,57 @@ def format_returns_distribution_data(
         }
         summary_df['基準 (%)'] = [round(val, 2) for val in benchmark_stats.values()]
     
-    # Create monthly returns dataframe
-    monthly_returns = portfolio_returns.resample('M').apply(
+    # Determine appropriate resampling for monthly returns based on period
+    if period in ['1mo', '3mo']:
+        resample_rule = 'W'
+        label = '週'
+    elif period in ['6mo', '1y', '3y']:
+        resample_rule = 'M'
+        label = '月份'
+    else:
+        resample_rule = 'Q'
+        label = '季度'
+    
+    # Create periodic returns dataframe
+    periodic_returns = portfolio_returns.resample(resample_rule).apply(
         lambda x: (1 + x).prod() - 1
     ).to_frame('投資組合 (%)') * 100
     
-    monthly_returns.index = monthly_returns.index.strftime('%Y-%m')
-    monthly_returns = monthly_returns.round(2)
+    if resample_rule == 'W':
+        periodic_returns.index = periodic_returns.index.strftime('%Y-%m-%d')
+    elif resample_rule == 'M':
+        periodic_returns.index = periodic_returns.index.strftime('%Y-%m')
+    else:
+        periodic_returns.index = periodic_returns.index.strftime('%Y-%m')
     
-    # Add benchmark monthly returns if provided
+    periodic_returns = periodic_returns.round(2)
+    
+    # Add benchmark periodic returns if provided
     if benchmark_returns is not None:
-        benchmark_monthly = benchmark_returns.resample('M').apply(
+        benchmark_periodic = benchmark_returns.resample(resample_rule).apply(
             lambda x: (1 + x).prod() - 1
         ).to_frame('基準 (%)') * 100
         
-        benchmark_monthly.index = benchmark_monthly.index.strftime('%Y-%m')
-        benchmark_monthly = benchmark_monthly.round(2)
+        if resample_rule == 'W':
+            benchmark_periodic.index = benchmark_periodic.index.strftime('%Y-%m-%d')
+        elif resample_rule == 'M':
+            benchmark_periodic.index = benchmark_periodic.index.strftime('%Y-%m')
+        else:
+            benchmark_periodic.index = benchmark_periodic.index.strftime('%Y-%m')
         
-        # Join portfolio and benchmark monthly returns
-        monthly_returns = monthly_returns.join(benchmark_monthly)
+        benchmark_periodic = benchmark_periodic.round(2)
+        
+        # Join portfolio and benchmark periodic returns
+        periodic_returns = periodic_returns.join(benchmark_periodic)
     
-    # Reset index to make the month a column
-    monthly_returns = monthly_returns.reset_index().rename(columns={'index': 'Month'})
+    # Reset index to make the period a column
+    periodic_returns = periodic_returns.reset_index()
+    periodic_returns.columns = [label] + list(periodic_returns.columns[1:])
     
     return {
         'summary': summary_df,
-        'monthly_returns': monthly_returns
+        'periodic_returns': periodic_returns,
+        'period_type': label
     }
 
 
@@ -245,3 +304,28 @@ def format_benchmark_comparison(comparison: Dict[str, float]) -> pd.DataFrame:
     })
     
     return {'comparison': data, 'relative': relative_df}
+
+def prepare_cumulative_returns_plot(cum_table: pd.DataFrame) -> pd.DataFrame:
+    """
+    Prepare long-form DataFrame for LinePlot of cumulative returns.
+    Expected table columns: ['日期', '投資組合 (%)', optional '基準 (%)']
+    """
+    value_cols = [col for col in cum_table.columns if col.endswith("(%)")]
+    # Melt to long form with 類別 and 回報 (%)
+    plot_df = cum_table.melt(id_vars=["日期"], value_vars=value_cols, var_name="類別", value_name="回報 (%)")
+    return plot_df
+
+
+def prepare_drawdowns_plot(drawdowns_table: pd.DataFrame) -> pd.DataFrame:
+    """
+    Prepare DataFrame for LinePlot of drawdowns.
+    Expected columns: ['日期', '最大回撤 (%)']
+    """
+    return drawdowns_table.copy()
+
+def prepare_weight_allocation_plot(weights_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Prepare DataFrame for BarPlot of weight allocation.
+    Expected columns: ['資產','權重 (%)']
+    """
+    return weights_df.copy()

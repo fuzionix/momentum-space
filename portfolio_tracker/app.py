@@ -14,7 +14,10 @@ from utils.visualizations import (
     format_returns_distribution_data,
     format_weight_allocation_data,
     format_performance_metrics,
-    format_benchmark_comparison
+    format_benchmark_comparison,
+    prepare_cumulative_returns_plot,
+    prepare_drawdowns_plot,
+    prepare_weight_allocation_plot,
 )
 
 BENCHMARK_OPTIONS = {
@@ -54,83 +57,112 @@ def process_portfolio(
         output (tuple): Multiple return values including plots and performance metrics.
     """
     # Process tickers and weights inputs
-    tickers = [ticker.strip().upper() for ticker in tickers_input.split(',')]
-    weights_str = weights_input.split(',')
+    tickers = [ticker.strip().upper() for ticker in tickers_input.split(',') if ticker.strip()]
+    weights_str = [w for w in weights_input.split(',') if w.strip()]
     
     # Validate inputs
     if len(tickers) != len(weights_str):
-        return (None, None, None, None, None, 
-                f"Error: Number of tickers ({len(tickers)}) does not match number of weights ({len(weights_str)})")
+        return (
+            None, None,   # 累積回報: plot, table
+            None, None,   # 最大回撤: plot, table
+            None, None,   # 報酬分佈摘要: plot, table
+            None, None,   # 每月報酬: plot, table
+            None, None,   # 投資組合配置: plot, table
+            None, None,   # 績效指標: plot, table
+            None, None,   # 基準比較: plot, table
+            None, None,   # 相對績效: plot, table
+            f"錯誤：股票代碼數量 ({len(tickers)}) 與權重數量 ({len(weights_str)}) 不匹配"
+        )
     
     try:
         weights_list = [float(w.strip()) for w in weights_str]
         # Convert percentage weights to decimals (e.g., 40 -> 0.4)
         weights_list = [w/100 for w in weights_list]
     except ValueError:
-        return (None, None, None, None, None, 
-                "Error: Weights must be numeric values")
+        return (
+            None, None, None, None, None, None, None, None,
+            None, None, None, None, None, None, None, None,
+            "權重必須為數字"
+        )
     
     # Check if weights sum to approximately 1
     if not 0.99 <= sum(weights_list) <= 1.01:
-        return (None, None, None, None, None, 
-                f"Error: Weights must sum to approximately 100% (current sum: {sum(weights_list)*100:.1f}%)")
+        return (
+            None, None, None, None, None, None, None, None,
+            None, None, None, None, None, None, None, None,
+            f"權重必須總和為 100% (當前總和：{sum(weights_list)*100:.1f}%)"
+        )
     
-    # Create weights dictionary
     weights = dict(zip(tickers, weights_list))
     
-    # Validate tickers
     valid_tickers, invalid_tickers = validate_tickers(tickers)
     if invalid_tickers:
-        return (None, None, None, None, None, 
-                f"Error: The following tickers are invalid: {', '.join(invalid_tickers)}")
+        return (
+            None, None, None, None, None, None, None, None,
+            None, None, None, None, None, None, None, None,
+            f"無效的股票代碼：{', '.join(invalid_tickers)}"
+        )
     
-    # Fetch stock data
     try:
         period = DATE_RANGE_OPTIONS[date_range]
         stock_data = fetch_stock_data(valid_tickers, period=period)
         benchmark_data = fetch_benchmark_data(BENCHMARK_OPTIONS[benchmark], period=period)
     except Exception as e:
-        return (None, None, None, None, None, f"Error fetching data: {str(e)}")
+        return (
+            None, None, None, None, None, None, None, None,
+            None, None, None, None, None, None, None, None,
+            f"獲取數據時出錯：{str(e)}"
+        )
     
-    # Create portfolio
     portfolio = Portfolio(stock_data, weights)
     
-    # Calculate benchmark returns
     benchmark_returns = benchmark_data.pct_change().dropna()
     benchmark_cumulative_returns = (1 + benchmark_returns).cumprod() - 1
     
-    # Generate tables
+    # Pass the period to formatting functions
     cumulative_returns_table = format_cumulative_returns_data(
         portfolio.cumulative_returns, 
-        benchmark_cumulative_returns
+        benchmark_cumulative_returns,
+        period=period
     )
     
-    drawdowns_table = format_drawdowns_data(portfolio.portfolio_returns)
+    drawdowns_table = format_drawdowns_data(
+        portfolio.portfolio_returns,
+        period=period
+    )
     
     returns_distribution_data = format_returns_distribution_data(
         portfolio.portfolio_returns, 
-        benchmark_returns
+        benchmark_returns,
+        period=period
     )
     
     weight_allocation_table = format_weight_allocation_data(weights)
     
-    # Get performance metrics
     portfolio_metrics = portfolio.get_performance_summary()
     metrics_table = format_performance_metrics(portfolio_metrics)
     
     benchmark_comparison = portfolio.compare_to_benchmark(benchmark_returns)
     comparison_tables = format_benchmark_comparison(benchmark_comparison)
+
+    # Prepare plot data
+    cumulative_returns_plot_df = prepare_cumulative_returns_plot(cumulative_returns_table)
+    drawdowns_plot_df = prepare_drawdowns_plot(drawdowns_table)
+    weight_allocation_plot_df = prepare_weight_allocation_plot(weight_allocation_table)
     
     return (
+        cumulative_returns_plot_df,
         cumulative_returns_table,
+        drawdowns_plot_df,
         drawdowns_table,
         returns_distribution_data['summary'],
-        returns_distribution_data['monthly_returns'],
+        returns_distribution_data['periodic_returns'],
+        weight_allocation_plot_df,
         weight_allocation_table,
         metrics_table,
         comparison_tables['comparison'],
         comparison_tables['relative'],
-        f"Successfully analyzed portfolio of {len(valid_tickers)} assets"
+        f"載入成功：分析涵蓋 {len(valid_tickers)} 支股票"
     )
 
 
@@ -179,14 +211,38 @@ def create_ui():
         analyze_btn = gr.Button("分析投資組合", variant="primary")
 
         output_message = gr.Textbox(label="狀態")
-        summary_output = gr.Markdown(label="分析摘要")
 
         with gr.Tabs():
             with gr.TabItem("累積回報"):
-                cumulative_returns_table = gr.DataFrame()
+                cumulative_returns_plot = gr.LinePlot(
+                    label="累積回報圖",
+                    x="日期",
+                    y="回報 (%)",
+                    color="類別",
+                    overlay=True,
+                    title="累積回報 (%)",
+                    height=300,
+                    x_label_angle=90,
+                    sort='x',
+                    color_map={"投資組合 (%)": "#28170b", "基準 (%)": "#f97316"},
+                    show_fullscreen_button=True,
+                    show_export_button=True,
+                )
+                cumulative_returns_table = gr.DataFrame(label="累積回報（每月）")
                 
             with gr.TabItem("最大回撤"):
-                drawdowns_table = gr.DataFrame()
+                drawdowns_plot = gr.LinePlot(
+                    label="最大回撤圖",
+                    x="日期",
+                    y="最大回撤 (%)",
+                    title="最大回撤 (%)",
+                    height=300,
+                    x_label_angle=90,
+                    sort='x',
+                    show_fullscreen_button=True,
+                    show_export_button=True,
+                )
+                drawdowns_table = gr.DataFrame(label="最大回撤（每月最小值）")
                 
             with gr.TabItem("報酬分佈"):
                 with gr.Row():
@@ -198,7 +254,15 @@ def create_ui():
                         monthly_returns_table = gr.DataFrame()
                 
             with gr.TabItem("投資組合配置"):
-                weight_allocation_table = gr.DataFrame()
+                weight_allocation_plot = gr.BarPlot(
+                    label="投資組合配置圖",
+                    x="資產",
+                    y="權重 (%)",
+                    y_lim=(0, 100),
+                    title="投資組合資產權重 (%)",
+                    height=300,
+                )
+                weight_allocation_table = gr.DataFrame(label="投資組合配置（表格）")
                 
             with gr.TabItem("績效指標"):
                 metrics_table = gr.DataFrame()
@@ -216,10 +280,13 @@ def create_ui():
             fn=process_portfolio,
             inputs=[tickers_input, weights_input, date_range, benchmark],
             outputs=[
-                cumulative_returns_table, 
-                drawdowns_table, 
+                cumulative_returns_plot,
+                cumulative_returns_table,
+                drawdowns_plot,
+                drawdowns_table,
                 returns_stats_table,
                 monthly_returns_table, 
+                weight_allocation_plot,
                 weight_allocation_table, 
                 metrics_table,
                 comparison_table,
@@ -232,8 +299,8 @@ def create_ui():
         examples = gr.Examples(
             examples=[
                 ["AAPL, MSFT, GOOGL, AMZN", "25, 25, 25, 25", "五年", "標普 500"],
-                ["SPY, QQQ, IWM", "50, 30, 20", "三年", "道瓊斯"],
-                ["AAPL, BRK-B, KO, JNJ, PG", "20, 30, 20, 15, 15", "十年", "納斯達克"],
+                ["SPY, QQQ, IWM", "50, 30, 20", "五年", "標普 500"],
+                ["AAPL, BRK-B, KO, JNJ, PG", "20, 30, 20, 15, 15", "五年", "標普 500"],
             ],
             inputs=[tickers_input, weights_input, date_range, benchmark]
         )
