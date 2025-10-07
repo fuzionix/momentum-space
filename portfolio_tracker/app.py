@@ -4,9 +4,11 @@ Portfolio Performance Tracker - Main Application
 An interactive web application to analyze and visualize portfolio performance metrics.
 """
 
+import os
 import warnings
 import gradio as gr
 
+from dotenv import load_dotenv
 from utils.data_fetcher import fetch_stock_data, fetch_benchmark_data, validate_tickers
 from utils.input_validator import validate_inputs, InputValidationError
 from utils.portfolio import Portfolio
@@ -24,6 +26,8 @@ from utils.visualizations import (
 )
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
+
+load_dotenv()
 
 BENCHMARK_OPTIONS = {
     "標普 500": "^GSPC",
@@ -320,4 +324,9 @@ def create_ui():
 
 if __name__ == "__main__":
     app = create_ui()
-    app.launch(server_name="192.168.50.97", server_port=7860, share=True)
+    if os.environ.get("HF_SPACE", "false") == "true":
+        app.launch()
+    else:
+        server_ip = os.environ.get("SERVER_IP", "127.0.0.1")
+        server_port = int(os.environ.get("SERVER_PORT", "7860"))
+        app.launch(server_name=server_ip, server_port=server_port, share=True)
