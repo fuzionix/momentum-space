@@ -61,6 +61,7 @@ def process_portfolio(
     Returns:
         output (tuple): Multiple return values including plots and performance metrics.
     """
+    # Step 1: Validate inputs and tickers
     try:
         tickers, weights = validate_inputs(tickers_input, weights_input)
     except InputValidationError as e:
@@ -80,6 +81,7 @@ def process_portfolio(
             f"❌ 輸入錯誤：無效的股票代碼 - {', '.join(invalid_tickers)}"
         )
     
+    # Step 2: Fetch stock data
     try:
         period = DATE_RANGE_OPTIONS[date_range]
         stock_data = fetch_stock_data(valid_tickers, period=period)
@@ -91,12 +93,12 @@ def process_portfolio(
             f"❌ 獲取數據時出錯：{str(e)}"
         )
     
+    # Step 3: Generate formatted data for visualizations and metrics
     portfolio = Portfolio(stock_data, weights)
     
     benchmark_returns = benchmark_data.pct_change().dropna()
     benchmark_cumulative_returns = (1 + benchmark_returns).cumprod() - 1
     
-    # Step 1: Generate formatted data for visualizations and metrics
     cumulative_returns_table = format_cumulative_returns_data(
         portfolio.cumulative_returns, 
         benchmark_cumulative_returns,
@@ -122,7 +124,7 @@ def process_portfolio(
     benchmark_comparison = portfolio.compare_to_benchmark(benchmark_returns)
     comparison_tables = format_benchmark_comparison(benchmark_comparison)
 
-    # Step 2: Prepare plot data from formatted tables
+    # Step 4: Prepare plot data from formatted tables
     cumulative_returns_plot_df = prepare_cumulative_returns_plot(cumulative_returns_table)
     drawdowns_plot_df = prepare_drawdowns_plot(drawdowns_table)
     weight_allocation_plot_df = prepare_weight_allocation_plot(weight_allocation_table)
