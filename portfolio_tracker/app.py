@@ -18,6 +18,7 @@ from utils.visualizations import (
     prepare_cumulative_returns_plot,
     prepare_drawdowns_plot,
     prepare_weight_allocation_plot,
+    prepare_contribution_allocation_plot,
 )
 
 BENCHMARK_OPTIONS = {
@@ -119,7 +120,7 @@ def process_portfolio(
     benchmark_returns = benchmark_data.pct_change().dropna()
     benchmark_cumulative_returns = (1 + benchmark_returns).cumprod() - 1
     
-    # Pass the period to formatting functions
+    # 1. Generate formatted data for visualizations and metrics
     cumulative_returns_table = format_cumulative_returns_data(
         portfolio.cumulative_returns, 
         benchmark_cumulative_returns,
@@ -137,7 +138,7 @@ def process_portfolio(
         period=period
     )
     
-    weight_allocation_table = format_weight_allocation_data(weights)
+    weight_allocation_table = format_weight_allocation_data(weights, stock_data)
     
     portfolio_metrics = portfolio.get_performance_summary()
     metrics_table = format_performance_metrics(portfolio_metrics)
@@ -145,20 +146,23 @@ def process_portfolio(
     benchmark_comparison = portfolio.compare_to_benchmark(benchmark_returns)
     comparison_tables = format_benchmark_comparison(benchmark_comparison)
 
-    # Prepare plot data
+    # 2. Prepare plot data from formatted tables
     cumulative_returns_plot_df = prepare_cumulative_returns_plot(cumulative_returns_table)
     drawdowns_plot_df = prepare_drawdowns_plot(drawdowns_table)
     weight_allocation_plot_df = prepare_weight_allocation_plot(weight_allocation_table)
+    contribution_allocation_plot_df = prepare_contribution_allocation_plot(weight_allocation_table)
     
     return (
         cumulative_returns_plot_df,
         cumulative_returns_table,
         drawdowns_plot_df,
         drawdowns_table,
+        returns_distribution_data['histogram'],
         returns_distribution_data['summary'],
         returns_distribution_data['periodic_returns'],
         weight_allocation_plot_df,
-        weight_allocation_table,
+        weight_allocation_table, 
+        contribution_allocation_plot_df,
         metrics_table,
         comparison_tables['comparison'],
         comparison_tables['relative'],
@@ -224,7 +228,7 @@ def create_ui():
                     height=300,
                     x_label_angle=90,
                     sort='x',
-                    color_map={"投資組合 (%)": "#28170b", "基準 (%)": "#f97316"},
+                    color_map={"投資組合 (%)": "#f97316", "基準 (%)": "#28170b"},
                     show_fullscreen_button=True,
                     show_export_button=True,
                 )
@@ -245,6 +249,14 @@ def create_ui():
                 drawdowns_table = gr.DataFrame(label="最大回撤（每月最小值）")
                 
             with gr.TabItem("報酬分佈"):
+                returns_histogram_plot = gr.BarPlot(
+                    label="日報酬分佈圖",
+                    x="回報區間 (%)",
+                    y="頻率",
+                    height=300,
+                    show_fullscreen_button=True,
+                    show_export_button=True,
+                )
                 with gr.Row():
                     with gr.Column():
                         gr.Markdown("### 報酬分佈摘要")
@@ -254,14 +266,25 @@ def create_ui():
                         monthly_returns_table = gr.DataFrame()
                 
             with gr.TabItem("投資組合配置"):
-                weight_allocation_plot = gr.BarPlot(
-                    label="投資組合配置圖",
-                    x="資產",
-                    y="權重 (%)",
-                    y_lim=(0, 100),
-                    title="投資組合資產權重 (%)",
-                    height=300,
-                )
+                with gr.Row():
+                    with gr.Column():
+                        weight_allocation_plot = gr.BarPlot(
+                            label="投資組合配置圖",
+                            x="資產",
+                            y="權重 (%)",
+                            y_lim=(0, 100),
+                            color_map={"權重 (%)": "#f97316"},
+                            height=300,
+                        )
+                    with gr.Column():
+                        contribution_allocation_plot = gr.BarPlot(
+                            label="投資組合貢獻圖",
+                            x="資產",
+                            y="貢獻 (%)",
+                            y_lim=(0, 100),
+                            color_map={"貢獻 (%)": "#3b82f6"},
+                            height=300,
+                        )
                 weight_allocation_table = gr.DataFrame(label="投資組合配置（表格）")
                 
             with gr.TabItem("績效指標"):
@@ -291,10 +314,12 @@ def create_ui():
                 cumulative_returns_table,
                 drawdowns_plot,
                 drawdowns_table,
+                returns_histogram_plot,
                 returns_stats_table,
                 monthly_returns_table, 
                 weight_allocation_plot,
                 weight_allocation_table, 
+                contribution_allocation_plot,
                 metrics_table,
                 comparison_table,
                 relative_metrics_table,

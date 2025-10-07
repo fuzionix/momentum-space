@@ -126,13 +126,13 @@ class Portfolio:
         total_return = self.cumulative_returns.iloc[-1] * 100
         
         return {
-            "投資組合 (%)": total_return,
-            "投資組合年化報酬 (%)": annualized_return,
-            "投資組合年化波動率 (%)": annualized_volatility,
-            "投資組合夏普比率": sharpe_ratio,
-            "投資組合最大回撤 (%)": max_drawdown,
-            "投資組合最大回撤峰值日期": peak_date.strftime('%Y-%m-%d'),
-            "投資組合最大回撤谷值日期": trough_date.strftime('%Y-%m-%d')
+            "總回報 (%)": total_return,
+            "年化報酬 (%)": annualized_return,
+            "年化波動率 (%)": annualized_volatility,
+            "夏普比率": sharpe_ratio,
+            "最大回撤 (%)": max_drawdown,
+            "最大回撤峰值日期": peak_date.strftime('%Y-%m-%d'),
+            "最大回撤谷值日期": trough_date.strftime('%Y-%m-%d')
         }
 
     def compare_to_benchmark(self, benchmark_returns: pd.Series) -> Dict[str, float]:

@@ -30,28 +30,27 @@ def fetch_stock_data(
     else:
         data = yf.download(tickers, period=period, end=end_date, progress=False)
     
-        if isinstance(data.columns, pd.MultiIndex):
-            # Get the 'Close' or 'Adj Close' price from the MultiIndex
-            if ('Adj Close', tickers[0]) in data.columns:
-                return pd.DataFrame({tickers[0]: data[('Adj Close', tickers[0])]})
-            elif ('Close', tickers[0]) in data.columns:
-                return pd.DataFrame({tickers[0]: data[('Close', tickers[0])]})
-            else:
-                raise ValueError("No valid price column found for ticker.")
+    # Handle MultiIndex columns (multiple tickers)
+    if isinstance(data.columns, pd.MultiIndex):
+        # Try to get 'Adj Close' for all tickers
+        if 'Adj Close' in data.columns.levels[0]:
+            adj_close = data['Adj Close']
+            adj_close.columns = list(adj_close.columns)  # Ensure columns are ticker names
+            return adj_close
+        elif 'Close' in data.columns.levels[0]:
+            close = data['Close']
+            close.columns = list(close.columns)
+            return close
         else:
-            # Original logic for flat column structure
-            if 'Adj Close' in data.columns:
-                return pd.DataFrame({tickers[0]: data['Adj Close']})
-            elif 'Close' in data.columns:
-                return pd.DataFrame({tickers[0]: data['Close']})
-            else:
-                raise ValueError("No valid price column found for ticker.")
-    
-    # For multiple tickers, extract the Adj Close column
-    if 'Adj Close' in data.columns:
-        return data['Adj Close']
-    return data['Close']
-
+            raise ValueError("No valid price column found for tickers.")
+    else:
+        # Single ticker or flat columns
+        if 'Adj Close' in data.columns:
+            return pd.DataFrame(data['Adj Close'])
+        elif 'Close' in data.columns:
+            return pd.DataFrame(data['Close'])
+        else:
+            raise ValueError("No valid price column found for ticker.")
 
 def fetch_benchmark_data(
     benchmark_ticker: str = "^GSPC", # S&P 500 by default

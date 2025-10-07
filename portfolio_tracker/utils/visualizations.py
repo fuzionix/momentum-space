@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 from typing import Dict, Optional
 
@@ -202,33 +203,76 @@ def format_returns_distribution_data(
     periodic_returns = periodic_returns.reset_index()
     periodic_returns.columns = [label] + list(periodic_returns.columns[1:])
     
+    # Add histogram data for returns distribution
+    portfolio_returns_pct = portfolio_returns * 100
+
+    # Calculate the max absolute value to determine bin range
+    max_abs_return = max(abs(portfolio_returns_pct.min()), abs(portfolio_returns_pct.max()))
+    
+    # Round up to nearest multiple of 2 for better aesthetics
+    bin_max = np.ceil(max_abs_return / 2) * 2
+    
+    # Create bins with width of 2, centered at 0
+    bin_edges = np.arange(-bin_max, bin_max + 2, 2)
+    
+    hist_data = []
+    hist, bin_edges = np.histogram(portfolio_returns_pct, bins=bin_edges)
+    bin_labels = [f"{bin_edges[i] if bin_edges[i] < 0 else bin_edges[i+1]:.0f}" for i in range(len(bin_edges)-1)]
+    
+    for i in range(len(hist)):
+        hist_data.append({
+            '回報區間 (%)': bin_labels[i],
+            '頻率': int(hist[i]),
+            '類別': '投資組合'
+        })
+    
+    hist_df = pd.DataFrame(hist_data)
+    
     return {
         'summary': summary_df,
         'periodic_returns': periodic_returns,
-        'period_type': label
+        'period_type': label,
+        'histogram': hist_df
     }
 
 
 def format_weight_allocation_data(
-    weights: Dict[str, float]
+    weights: Dict[str, float],
+    prices: Optional[pd.DataFrame] = None
 ) -> pd.DataFrame:
     """
     Format portfolio weight allocation data for tabular display.
     
     Args:
         weights (Dict[str, float]): Dictionary mapping tickers to weights.
+        prices (Optional[pd.DataFrame]): DataFrame of price history for calculating returns.
     
     Returns:
-        output (pd.DataFrame): DataFrame with weight allocation information.
+        output (pd.DataFrame): DataFrame with weight allocation and contribution information.
     """
-    # Convert weights to percentages
     weights_pct = {ticker: weight * 100 for ticker, weight in weights.items()}
     
-    # Sort weights from highest to lowest
-    sorted_weights = sorted(weights_pct.items(), key=lambda x: x[1], reverse=True)
+    data = pd.DataFrame({
+        '資產': list(weights_pct.keys()),
+        '權重 (%)': [weights_pct[ticker] for ticker in weights_pct.keys()]
+    })
     
-    # Create dataframe
-    data = pd.DataFrame(sorted_weights, columns=['資產', '權重 (%)'])
+    # Add contribution information if price data is available
+    if prices is not None and not prices.empty:
+        # Calculate total returns for each asset
+        asset_returns = {}
+        for ticker in weights_pct.keys():
+            if ticker in prices.columns:
+                # Calculate return from first to last available price
+                first_price = prices[ticker].dropna().iloc[0]
+                last_price = prices[ticker].dropna().iloc[-1]
+                asset_return = (last_price / first_price - 1) * 100
+                asset_returns[ticker] = asset_return
+        
+        data['回報 (%)'] = data['資產'].map(lambda x: asset_returns.get(x, 0)).round(2)
+        data['貢獻 (%)'] = (data['權重 (%)'] * data['回報 (%)'] / 100).round(2)
+    
+    data = data.sort_values('權重 (%)', ascending=False)
     data['權重 (%)'] = data['權重 (%)'].round(2)
 
     return data
@@ -329,3 +373,16 @@ def prepare_weight_allocation_plot(weights_df: pd.DataFrame) -> pd.DataFrame:
     Expected columns: ['資產','權重 (%)']
     """
     return weights_df.copy()
+
+def prepare_contribution_allocation_plot(weights_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Prepare DataFrame for BarPlot of contribution allocation.
+    Expected columns: ['資產','貢獻 (%)']
+    """
+    return weights_df.copy()
+
+def prepare_returns_histogram_plot(hist_data: pd.DataFrame) -> pd.DataFrame:
+    """
+    Prepare DataFrame for BarPlot of returns histogram.
+    """
+    return hist_data
