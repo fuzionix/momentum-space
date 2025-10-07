@@ -4,9 +4,11 @@ Portfolio Performance Tracker - Main Application
 An interactive web application to analyze and visualize portfolio performance metrics.
 """
 
+import warnings
 import gradio as gr
 
 from utils.data_fetcher import fetch_stock_data, fetch_benchmark_data, validate_tickers
+from utils.input_validator import validate_inputs, InputValidationError
 from utils.portfolio import Portfolio
 from utils.visualizations import (
     format_cumulative_returns_data,
@@ -20,6 +22,8 @@ from utils.visualizations import (
     prepare_weight_allocation_plot,
     prepare_contribution_allocation_plot,
 )
+
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 BENCHMARK_OPTIONS = {
     "標普 500": "^GSPC",
@@ -57,51 +61,23 @@ def process_portfolio(
     Returns:
         output (tuple): Multiple return values including plots and performance metrics.
     """
-    # Process tickers and weights inputs
-    tickers = [ticker.strip().upper() for ticker in tickers_input.split(',') if ticker.strip()]
-    weights_str = [w for w in weights_input.split(',') if w.strip()]
-    
-    # Validate inputs
-    if len(tickers) != len(weights_str):
-        return (
-            None, None,   # 累積回報: plot, table
-            None, None,   # 最大回撤: plot, table
-            None, None,   # 報酬分佈摘要: plot, table
-            None, None,   # 每月報酬: plot, table
-            None, None,   # 投資組合配置: plot, table
-            None, None,   # 績效指標: plot, table
-            None, None,   # 基準比較: plot, table
-            None, None,   # 相對績效: plot, table
-            f"錯誤：股票代碼數量 ({len(tickers)}) 與權重數量 ({len(weights_str)}) 不匹配"
-        )
-    
     try:
-        weights_list = [float(w.strip()) for w in weights_str]
-        # Convert percentage weights to decimals (e.g., 40 -> 0.4)
-        weights_list = [w/100 for w in weights_list]
-    except ValueError:
+        tickers, weights = validate_inputs(tickers_input, weights_input)
+    except InputValidationError as e:
         return (
-            None, None, None, None, None, None, None, None,
-            None, None, None, None, None, None, None, None,
-            "權重必須為數字"
+            None, None, None, None, None, None, None,
+            None, None, None, None, None, None,
+            f"❌ 輸入錯誤：{e.message}"
         )
     
-    # Check if weights sum to approximately 1
-    if not 0.99 <= sum(weights_list) <= 1.01:
-        return (
-            None, None, None, None, None, None, None, None,
-            None, None, None, None, None, None, None, None,
-            f"權重必須總和為 100% (當前總和：{sum(weights_list)*100:.1f}%)"
-        )
-    
-    weights = dict(zip(tickers, weights_list))
+    weights = dict(zip(tickers, weights))
     
     valid_tickers, invalid_tickers = validate_tickers(tickers)
     if invalid_tickers:
         return (
-            None, None, None, None, None, None, None, None,
-            None, None, None, None, None, None, None, None,
-            f"無效的股票代碼：{', '.join(invalid_tickers)}"
+            None, None, None, None, None, None, None,
+            None, None, None, None, None, None,
+            f"❌ 輸入錯誤：無效的股票代碼 - {', '.join(invalid_tickers)}"
         )
     
     try:
@@ -110,9 +86,9 @@ def process_portfolio(
         benchmark_data = fetch_benchmark_data(BENCHMARK_OPTIONS[benchmark], period=period)
     except Exception as e:
         return (
-            None, None, None, None, None, None, None, None,
-            None, None, None, None, None, None, None, None,
-            f"獲取數據時出錯：{str(e)}"
+            None, None, None, None, None, None, None,
+            None, None, None, None, None, None,
+            f"❌ 獲取數據時出錯：{str(e)}"
         )
     
     portfolio = Portfolio(stock_data, weights)
@@ -120,7 +96,7 @@ def process_portfolio(
     benchmark_returns = benchmark_data.pct_change().dropna()
     benchmark_cumulative_returns = (1 + benchmark_returns).cumprod() - 1
     
-    # 1. Generate formatted data for visualizations and metrics
+    # Step 1: Generate formatted data for visualizations and metrics
     cumulative_returns_table = format_cumulative_returns_data(
         portfolio.cumulative_returns, 
         benchmark_cumulative_returns,
@@ -146,7 +122,7 @@ def process_portfolio(
     benchmark_comparison = portfolio.compare_to_benchmark(benchmark_returns)
     comparison_tables = format_benchmark_comparison(benchmark_comparison)
 
-    # 2. Prepare plot data from formatted tables
+    # Step 2: Prepare plot data from formatted tables
     cumulative_returns_plot_df = prepare_cumulative_returns_plot(cumulative_returns_table)
     drawdowns_plot_df = prepare_drawdowns_plot(drawdowns_table)
     weight_allocation_plot_df = prepare_weight_allocation_plot(weight_allocation_table)
@@ -166,7 +142,7 @@ def process_portfolio(
         metrics_table,
         comparison_tables['comparison'],
         comparison_tables['relative'],
-        f"載入成功：分析涵蓋 {len(valid_tickers)} 支股票"
+        f"✅ 載入成功：分析涵蓋 ({len(valid_tickers)}) 支股票"
     )
 
 
@@ -342,4 +318,4 @@ def create_ui():
 
 if __name__ == "__main__":
     app = create_ui()
-    app.launch(share=True)
+    app.launch(server_name="192.168.50.97", server_port=7860, share=True)

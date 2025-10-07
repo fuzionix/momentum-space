@@ -19,9 +19,9 @@ class Portfolio:
             prices (pd.DataFrame): DataFrame of prices with dates as index and tickers as columns.
             weights (Dict[str, float]): Dictionary mapping tickers to their weight in the portfolio.
         """
-        self.prices = prices
+        self.prices = prices.loc[:, list(weights.keys())]
         self.weights = weights
-        self.returns = prices.pct_change().dropna()
+        self.returns = self.prices.pct_change().replace([np.inf, -np.inf], np.nan).dropna()
         
         # Convert weights to numpy array in the same order as price columns
         self.weights_arr = np.array([weights.get(ticker, 0) for ticker in prices.columns])
@@ -82,9 +82,12 @@ class Portfolio:
             output (float): Sharpe ratio.
         """
         # Convert annual risk-free rate to daily
-        daily_rf = (1 + risk_free_rate) ** (1/252) - 1
-        excess_return = self.portfolio_returns - daily_rf
-        return (excess_return.mean() / excess_return.std()) * np.sqrt(252)
+        daily_rf = risk_free_rate / 252
+        excess = self.portfolio_returns - daily_rf
+        std = excess.std(ddof=1)
+        if std == 0 or np.isnan(std):
+            return 0.0
+        return np.sqrt(252) * excess.mean() / std
     
     def get_max_drawdown(self) -> Tuple[float, pd.Timestamp, pd.Timestamp]:
         """

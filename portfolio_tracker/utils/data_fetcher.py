@@ -29,6 +29,9 @@ def fetch_stock_data(
         data = yf.download(tickers, start=start_date, end=end_date, progress=False)
     else:
         data = yf.download(tickers, period=period, end=end_date, progress=False)
+
+    # Forward fill missing data and drop rows with all NaNs
+    data = data.ffill().dropna(how="all")
     
     # Handle MultiIndex columns (multiple tickers)
     if isinstance(data.columns, pd.MultiIndex):
@@ -42,7 +45,7 @@ def fetch_stock_data(
             close.columns = list(close.columns)
             return close
         else:
-            raise ValueError("No valid price column found for tickers.")
+            raise ValueError("找不到有效的價格欄位。")
     else:
         # Single ticker or flat columns
         if 'Adj Close' in data.columns:
@@ -50,7 +53,7 @@ def fetch_stock_data(
         elif 'Close' in data.columns:
             return pd.DataFrame(data['Close'])
         else:
-            raise ValueError("No valid price column found for ticker.")
+            raise ValueError("找不到有效的價格欄位。")
 
 def fetch_benchmark_data(
     benchmark_ticker: str = "^GSPC", # S&P 500 by default
@@ -84,20 +87,14 @@ def validate_tickers(tickers: List[str]) -> Tuple[List[str], List[str]]:
     Returns:
         output (Tuple[List[str], List[str]]): Tuple of (valid_tickers, invalid_tickers).
     """
-    valid_tickers = []
-    invalid_tickers = []
-    
+    valid, invalid = [], []
     for ticker in tickers:
-        ticker = ticker.strip().upper()
-        stock = yf.Ticker(ticker)
-        # Try to get some basic info to see if the ticker is valid
         try:
-            info = stock.info
-            if 'symbol' in info:
-                valid_tickers.append(ticker)
+            data = yf.download(ticker, period="5d", progress=False)
+            if data.empty:
+                invalid.append(ticker)
             else:
-                invalid_tickers.append(ticker)
-        except:
-            invalid_tickers.append(ticker)
-    
-    return valid_tickers, invalid_tickers
+                valid.append(ticker)
+        except Exception:
+            invalid.append(ticker)
+    return valid, invalid
