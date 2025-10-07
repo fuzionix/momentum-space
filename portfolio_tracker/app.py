@@ -33,7 +33,11 @@ BENCHMARK_OPTIONS = {
     "標普 500": "^GSPC",
     "道瓊斯": "^DJI",
     "納斯達克": "^IXIC",
-    "羅素 2000": "^RUT"
+    "羅素 2000": "^RUT",
+    "歐洲 Stoxx 600": "^STOXX",
+    "恆生指數": "^HSI",
+    "台灣加權指數": "^TWII",
+    "日經 225": "^N225",
 }
 
 DATE_RANGE_OPTIONS = {
