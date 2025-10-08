@@ -2,9 +2,6 @@ import re
 from typing import List, Tuple
 
 class InputValidationError(Exception):
-    """
-    Custom exception for all user input validation errors.
-    """
     def __init__(self, message: str):
         super().__init__(message)
         self.message = message
@@ -14,20 +11,6 @@ def validate_inputs(
     weights_input: str,
     allow_empty: bool = False
 ) -> Tuple[List[str], List[float]]:
-    """
-    Validate and parse user inputs for tickers and weights.
-
-    Args:
-        tickers_input (str): Comma-separated string of ticker symbols, e.g. "AAPL, MSFT, TSLA".
-        weights_input (str): Comma-separated string of weights (percentages), e.g. "50, 30, 20".
-        allow_empty (bool): Whether to allow empty tickers input for testing/demo. Default = False.
-
-    Returns:
-        output (Tuple[List[str], List[float]]): (tickers, normalized weights) where weights sum to 1.
-
-    Raises:
-        InputValidationError: If the validation fails at any step.
-    """
     # Step 1: Parse comma-separated values
     tickers = [t.strip().upper() for t in tickers_input.split(",") if t.strip()]
     weights = [w.strip() for w in weights_input.split(",") if w.strip()]

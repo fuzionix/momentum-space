@@ -7,17 +7,6 @@ def format_cumulative_returns_data(
     benchmark_cumulative_returns: Optional[pd.Series] = None,
     period: str = "5y"
 ) -> pd.DataFrame:
-    """
-    Format cumulative returns data for tabular display with period-appropriate date sampling.
-    
-    Args:
-        portfolio_cumulative_returns (pd.Series): Cumulative returns of the portfolio.
-        benchmark_cumulative_returns (Optional[pd.Series]): Cumulative returns of the benchmark.
-        period (str): Time period of the data ('1mo', '3mo', '6mo', '1y', '3y', '5y', '10y', 'max').
-    
-    Returns:
-        output (pd.DataFrame): DataFrame with formatted cumulative returns data.
-    """
     # Convert to percentage and round
     portfolio_pct = (portfolio_cumulative_returns * 100).round(2)
     
@@ -61,29 +50,11 @@ def format_drawdowns_data(
     portfolio_returns: pd.Series,
     period: str = "5y"
 ) -> pd.DataFrame:
-    """
-    Format drawdowns data for tabular display with period-appropriate date sampling.
-    
-    Args:
-        portfolio_returns (pd.Series): Returns of the portfolio.
-        period (str): Time period of the data.
-    
-    Returns:
-        output (pd.DataFrame): DataFrame with drawdown information.
-    """
-    # Calculate wealth index
     wealth_index = (1 + portfolio_returns).cumprod()
-    
-    # Calculate previous peaks
     previous_peaks = wealth_index.cummax()
-    
-    # Calculate drawdowns
     drawdowns = (wealth_index - previous_peaks) / previous_peaks
-    
-    # Convert to percentage and round
     drawdowns_pct = (drawdowns * 100).round(2)
     
-    # Create dataframe
     data = pd.DataFrame({
         '日期': drawdowns_pct.index,
         '最大回撤 (%)': drawdowns_pct.values
@@ -115,18 +86,6 @@ def format_returns_distribution_data(
     benchmark_returns: Optional[pd.Series] = None,
     period: str = "5y",
 ) -> Dict[str, pd.DataFrame]:
-    """
-    Format returns distribution data for tabular display.
-    
-    Args:
-        portfolio_returns (pd.Series): Returns of the portfolio.
-        benchmark_returns (Optional[pd.Series]): Returns of the benchmark.
-        period (str): Time period of the data ('1mo', '3mo', '6mo', '1y', '3y', '5y', '10y', 'max').
-    
-    Returns:
-        output (Dict[str, pd.DataFrame]): Dictionary with statistical summary DataFrames.
-    """
-    # Calculate portfolio return statistics
     portfolio_stats = {
         '平均 (%)': portfolio_returns.mean() * 100,
         '中位數 (%)': portfolio_returns.median() * 100,
@@ -137,13 +96,11 @@ def format_returns_distribution_data(
         '峰度 (Kurtosis)': portfolio_returns.kurtosis()
     }
     
-    # Create summary dataframe
     summary_df = pd.DataFrame({
         '統計量': list(portfolio_stats.keys()),
         '投資組合 (%)': [round(val, 2) for val in portfolio_stats.values()]
     })
     
-    # Add benchmark data if provided
     if benchmark_returns is not None:
         benchmark_stats = {
             '平均 (%)': benchmark_returns.mean() * 100,
@@ -240,16 +197,6 @@ def format_weight_allocation_data(
     weights: Dict[str, float],
     prices: Optional[pd.DataFrame] = None
 ) -> pd.DataFrame:
-    """
-    Format portfolio weight allocation data for tabular display.
-    
-    Args:
-        weights (Dict[str, float]): Dictionary mapping tickers to weights.
-        prices (Optional[pd.DataFrame]): DataFrame of price history for calculating returns.
-    
-    Returns:
-        output (pd.DataFrame): DataFrame with weight allocation and contribution information.
-    """
     weights_pct = {ticker: weight * 100 for ticker, weight in weights.items()}
     
     data = pd.DataFrame({
@@ -279,16 +226,6 @@ def format_weight_allocation_data(
 
 
 def format_performance_metrics(metrics: Dict[str, float]) -> pd.DataFrame:
-    """
-    Format performance metrics for tabular display.
-    
-    Args:
-        metrics (Dict[str, float]): Dictionary of performance metrics.
-    
-    Returns:
-        output (pd.DataFrame): DataFrame with formatted performance metrics.
-    """
-    # Create dataframe
     data = pd.DataFrame({
         '指標': list(metrics.keys()),
         '數值': list(metrics.values())
@@ -303,15 +240,6 @@ def format_performance_metrics(metrics: Dict[str, float]) -> pd.DataFrame:
 
 
 def format_benchmark_comparison(comparison: Dict[str, float]) -> pd.DataFrame:
-    """
-    Format benchmark comparison data for tabular display.
-    
-    Args:
-        comparison (Dict[str, float]): Dictionary of benchmark comparison metrics.
-    
-    Returns:
-        output (pd.DataFrame): DataFrame with formatted benchmark comparison data.
-    """
     # Organize data into portfolio vs benchmark structure
     portfolio_metrics = {
         '總回報 (%)': comparison['投資組合總回報 (%)'],
@@ -327,14 +255,12 @@ def format_benchmark_comparison(comparison: Dict[str, float]) -> pd.DataFrame:
         '最大回撤 (%)': comparison['基準最大回撤 (%)']
     }
     
-    # Create comparison dataframe
     data = pd.DataFrame({
         '指標': list(portfolio_metrics.keys()),
         '投資組合': [round(val, 2) if isinstance(val, (int, float)) else val for val in portfolio_metrics.values()],
         '基準': [round(val, 2) if isinstance(val, (int, float)) else val for val in benchmark_metrics.values()]
     })
     
-    # Add relative metrics
     relative_metrics = {
         '超額報酬 (%)': comparison['Alpha (%)'],
         'Beta': comparison['Beta'],
@@ -350,10 +276,6 @@ def format_benchmark_comparison(comparison: Dict[str, float]) -> pd.DataFrame:
     return {'comparison': data, 'relative': relative_df}
 
 def prepare_cumulative_returns_plot(cum_table: pd.DataFrame) -> pd.DataFrame:
-    """
-    Prepare long-form DataFrame for LinePlot of cumulative returns.
-    Expected table columns: ['日期', '投資組合 (%)', optional '基準 (%)']
-    """
     value_cols = [col for col in cum_table.columns if col.endswith("(%)")]
     # Melt to long form with 類別 and 回報 (%)
     plot_df = cum_table.melt(id_vars=["日期"], value_vars=value_cols, var_name="類別", value_name="回報 (%)")
@@ -361,28 +283,13 @@ def prepare_cumulative_returns_plot(cum_table: pd.DataFrame) -> pd.DataFrame:
 
 
 def prepare_drawdowns_plot(drawdowns_table: pd.DataFrame) -> pd.DataFrame:
-    """
-    Prepare DataFrame for LinePlot of drawdowns.
-    Expected columns: ['日期', '最大回撤 (%)']
-    """
     return drawdowns_table.copy()
 
 def prepare_weight_allocation_plot(weights_df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Prepare DataFrame for BarPlot of weight allocation.
-    Expected columns: ['資產','權重 (%)']
-    """
     return weights_df.copy()
 
 def prepare_contribution_allocation_plot(weights_df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Prepare DataFrame for BarPlot of contribution allocation.
-    Expected columns: ['資產','貢獻 (%)']
-    """
     return weights_df.copy()
 
 def prepare_returns_histogram_plot(hist_data: pd.DataFrame) -> pd.DataFrame:
-    """
-    Prepare DataFrame for BarPlot of returns histogram.
-    """
     return hist_data

@@ -1,100 +1,81 @@
-import datetime
 import pandas as pd
 import yfinance as yf
-from typing import List, Tuple, Optional
+from functools import lru_cache
+from typing import List, Tuple
 
 def fetch_stock_data(
-    tickers: List[str], 
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-    period: str = "5y"
+    tickers: List[str],
+    period: str = "5y",
 ) -> pd.DataFrame:
-    """
-    Fetch historical stock data for the given tickers.
-    
-    Args:
-        tickers (List[str]): List of stock ticker symbols.
-        start_date (Optional[str]): Start date in 'YYYY-MM-DD' format. If None, period is used.
-        end_date (Optional[str]): End date in 'YYYY-MM-DD' format. If None, today is used.
-        period (str): Period to fetch data for if start_date is None. Default is "5y" (5 years).
-    
-    Returns:
-        output (pd.DataFrame): DataFrame with adjusted closing prices for each ticker.
-    """
-    if end_date is None:
-        end_date = datetime.datetime.now().strftime('%Y-%m-%d')
-    
-    # Fetch data based on dates or period
-    if start_date:
-        data = yf.download(tickers, start=start_date, end=end_date, progress=False)
-    else:
-        data = yf.download(tickers, period=period, end=end_date, progress=False)
+    all_data = []
+    for ticker in tickers:
+        try:
+            df = fetch_single_ticker_cached(ticker, period)
+            all_data.append(df)
+        except Exception as e:
+            raise ValueError(f"無法獲取 {ticker} 的價格資料。")
 
-    # Forward fill missing data and drop rows with all NaNs
+    if not all_data:
+        raise ValueError("無法取得任何有效股票資料。")
+
+    data = pd.concat(all_data, axis=1)
+
     data = data.ffill().dropna(how="all")
-    
-    # Handle MultiIndex columns (multiple tickers)
-    if isinstance(data.columns, pd.MultiIndex):
-        # Try to get 'Adj Close' for all tickers
-        if 'Adj Close' in data.columns.levels[0]:
-            adj_close = data['Adj Close']
-            adj_close.columns = list(adj_close.columns)  # Ensure columns are ticker names
-            return adj_close
-        elif 'Close' in data.columns.levels[0]:
-            close = data['Close']
-            close.columns = list(close.columns)
-            return close
-        else:
-            raise ValueError("找不到有效的價格欄位。")
-    else:
-        # Single ticker or flat columns
-        if 'Adj Close' in data.columns:
-            return pd.DataFrame(data['Adj Close'])
-        elif 'Close' in data.columns:
-            return pd.DataFrame(data['Close'])
-        else:
-            raise ValueError("找不到有效的價格欄位。")
+    data = data.sort_index()
+    data.index = pd.to_datetime(data.index).tz_localize(None)  # Normalize timezone
+
+    return data
 
 def fetch_benchmark_data(
-    benchmark_ticker: str = "^GSPC", # S&P 500 by default
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-    period: str = "5y"
+    benchmark_ticker: str = "^GSPC",
+    period: str = "5y",
 ) -> pd.Series:
-    """
-    Fetch benchmark data (default is S&P 500).
-    
-    Args:
-        benchmark_ticker (str): Ticker symbol for the benchmark.
-        start_date (Optional[str]): Start date in 'YYYY-MM-DD' format. If None, period is used.
-        end_date (Optional[str]): End date in 'YYYY-MM-DD' format. If None, today is used.
-        period (str): Period to fetch data for if start_date is None. Default is "5y" (5 years).
-    
-    Returns:
-        output (pd.Series): Series with benchmark's adjusted closing prices.
-    """
-    benchmark_data = fetch_stock_data([benchmark_ticker], start_date, end_date, period)
-    return benchmark_data[benchmark_ticker]
-
+    df = fetch_stock_data([benchmark_ticker], period)
+    return df[benchmark_ticker]
 
 def validate_tickers(tickers: List[str]) -> Tuple[List[str], List[str]]:
-    """
-    Validate if the provided tickers exist in Yahoo Finance.
-    
-    Args:
-        tickers (List[str]): List of ticker symbols to validate.
-    
-    Returns:
-        output (Tuple[List[str], List[str]]): Tuple of (valid_tickers, invalid_tickers).
-    """
     valid, invalid = [], []
     for ticker in tickers:
         try:
-            data = yf.download(ticker, period="5d", progress=False)
-            if data.empty:
-                invalid.append(ticker)
-            else:
+            df = fetch_single_ticker_cached(ticker, "5d")
+            if df is not None and not df.empty:
                 valid.append(ticker)
+            else:
+                invalid.append(ticker)
         except Exception:
             invalid.append(ticker)
     return valid, invalid
+
+@lru_cache(maxsize=64)
+def fetch_single_ticker_cached(ticker: str, period: str = "5y") -> pd.DataFrame:
+    # Fetch data for a single ticker
+    data = yf.download(ticker, period=period, progress=False, auto_adjust=False)
+    
+    if data is None or data.empty:
+        raise ValueError(f"無法獲取 {ticker} 的價格資料。")
+
+    # Handle MultiIndex columns (multiple tickers)
+    if isinstance(data.columns, pd.MultiIndex):
+        # Try to get 'Adj Close' for all tickers
+        if "Adj Close" in data.columns.levels[0]:
+            adj_close = data["Adj Close"]
+        elif "Close" in data.columns.levels[0]:
+            adj_close = data["Close"]
+        else:
+            raise ValueError(f"缺少有效的收盤價格欄位。")
+        adj_close.columns = [ticker] if isinstance(adj_close, pd.Series) else [ticker]
+        return adj_close
+    else:
+        # Single ticker or flat columns
+        if "Adj Close" in data.columns:
+            series = data["Adj Close"]
+        elif "Close" in data.columns:
+            series = data["Close"]
+        else:
+            raise ValueError(f"缺少有效的收盤價格欄位。")
+
+    df = series.to_frame(name=ticker)
+    return df
+
+def clear_cache():
+    fetch_single_ticker_cached.cache_clear()

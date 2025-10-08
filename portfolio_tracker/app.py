@@ -1,9 +1,3 @@
-"""
-Portfolio Performance Tracker - Main Application
-
-An interactive web application to analyze and visualize portfolio performance metrics.
-"""
-
 import os
 import warnings
 import gradio as gr
@@ -57,18 +51,6 @@ def process_portfolio(
     date_range: str,
     benchmark: str
 ):
-    """
-    Process portfolio data and generate analysis.
-    
-    Args:
-        tickers_input (str): Comma-separated string of ticker symbols.
-        weights_input (str): Comma-separated string of weights (should sum to 100).
-        date_range (str): Date range to analyze.
-        benchmark (str): Benchmark to compare against.
-    
-    Returns:
-        output (tuple): Multiple return values including plots and performance metrics.
-    """
     # Step 1: Validate inputs and tickers
     try:
         tickers, weights = validate_inputs(tickers_input, weights_input)
@@ -157,12 +139,6 @@ def process_portfolio(
 
 
 def create_ui():
-    """
-    Create the Gradio interface.
-    
-    Returns:
-        output (gr.Interface): Gradio interface object.
-    """
     with gr.Blocks(title="投資組合分析") as app:
         gr.Markdown("# 投資組合分析")
         gr.Markdown(

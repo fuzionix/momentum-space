@@ -3,22 +3,11 @@ import pandas as pd
 from typing import Dict, Tuple
 
 class Portfolio:
-    """
-    Portfolio class for tracking and analyzing portfolio performance.
-    """
-    
     def __init__(
         self, 
         prices: pd.DataFrame, 
         weights: Dict[str, float]
     ):
-        """
-        Initialize a portfolio with prices and weights.
-        
-        Args:
-            prices (pd.DataFrame): DataFrame of prices with dates as index and tickers as columns.
-            weights (Dict[str, float]): Dictionary mapping tickers to their weight in the portfolio.
-        """
         self.prices = prices.loc[:, list(weights.keys())]
         self.weights = weights
         self.returns = self.prices.pct_change().replace([np.inf, -np.inf], np.nan).dropna()
@@ -34,53 +23,20 @@ class Portfolio:
         self.cumulative_returns = self._calculate_cumulative_returns()
     
     def _calculate_portfolio_returns(self) -> pd.Series:
-        """
-        Calculate daily portfolio returns based on asset weights.
-        
-        Returns:
-            output (pd.Series): Daily portfolio returns.
-        """
         return self.returns.dot(self.weights_arr)
     
     def _calculate_cumulative_returns(self) -> pd.Series:
-        """
-        Calculate cumulative portfolio returns.
-        
-        Returns:
-            output (pd.Series): Cumulative portfolio returns.
-        """
         return (1 + self.portfolio_returns).cumprod() - 1
     
     def get_annualized_return(self) -> float:
-        """
-        Calculate the annualized portfolio return.
-        
-        Returns:
-            output (float): Annualized return as a percentage.
-        """
         # Assume 252 trading days in a year
         return self.portfolio_returns.mean() * 252 * 100
     
     def get_annualized_volatility(self) -> float:
-        """
-        Calculate the annualized portfolio volatility.
-        
-        Returns:
-            output (float): Annualized volatility as a percentage.
-        """
         # Assume 252 trading days in a year
         return self.portfolio_returns.std() * np.sqrt(252) * 100
     
     def get_sharpe_ratio(self, risk_free_rate: float = 0.02) -> float:
-        """
-        Calculate the Sharpe ratio of the portfolio.
-        
-        Args:
-            risk_free_rate (float): Annual risk-free rate. Default is 0.02 (2%).
-        
-        Returns:
-            output (float): Sharpe ratio.
-        """
         # Convert annual risk-free rate to daily
         daily_rf = risk_free_rate / 252
         excess = self.portfolio_returns - daily_rf
@@ -90,12 +46,6 @@ class Portfolio:
         return np.sqrt(252) * excess.mean() / std
     
     def get_max_drawdown(self) -> Tuple[float, pd.Timestamp, pd.Timestamp]:
-        """
-        Calculate the maximum drawdown of the portfolio.
-        
-        Returns:
-            output (Tuple): Maximum drawdown as a percentage, peak date, and trough date.
-        """
         # Calculate the cumulative wealth index
         wealth_index = (1 + self.portfolio_returns).cumprod()
         
@@ -115,12 +65,6 @@ class Portfolio:
         return max_dd * 100, peak_date, trough_date
     
     def get_performance_summary(self) -> Dict[str, float]:
-        """
-        Get a summary of portfolio performance metrics.
-        
-        Returns:
-            output (Dict[str, float]): Dictionary with performance metrics.
-        """
         annualized_return = self.get_annualized_return()
         annualized_volatility = self.get_annualized_volatility()
         sharpe_ratio = self.get_sharpe_ratio()
@@ -139,15 +83,6 @@ class Portfolio:
         }
 
     def compare_to_benchmark(self, benchmark_returns: pd.Series) -> Dict[str, float]:
-        """
-        Compare portfolio performance to a benchmark.
-        
-        Args:
-            benchmark_returns (pd.Series): Series of benchmark returns.
-            
-        Returns:
-            output (Dict[str, float]): Dictionary with comparative metrics.
-        """
         # Calculate benchmark cumulative returns
         benchmark_cum_returns = (1 + benchmark_returns).cumprod() - 1
         
