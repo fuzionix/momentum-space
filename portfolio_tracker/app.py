@@ -1,6 +1,9 @@
 import os
 import warnings
+import numpy as np
+import pandas as pd
 import gradio as gr
+from typing import List
 
 from dotenv import load_dotenv
 from utils.data_fetcher import fetch_stock_data, fetch_benchmark_data, validate_tickers
@@ -22,6 +25,13 @@ from utils.visualizations import (
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 load_dotenv()
+
+default_portfolio = [
+    ["AAPL", 25],
+    ["MSFT", 25], 
+    ["GOOGL", 25],
+    ["AMZN", 25]
+]
 
 BENCHMARK_OPTIONS = {
     "標普 500": "^GSPC",
@@ -46,14 +56,13 @@ DATE_RANGE_OPTIONS = {
 }
 
 def process_portfolio(
-    tickers_input: str,
-    weights_input: str,
+    portfolio_input: List[List],
     date_range: str,
     benchmark: str
 ):
     # Step 1: Validate inputs and tickers
     try:
-        tickers, weights = validate_inputs(tickers_input, weights_input)
+        tickers, weights = validate_inputs(portfolio_input)
     except InputValidationError as e:
         return (
             None, None, None, None, None, None, None,
@@ -86,7 +95,7 @@ def process_portfolio(
     # Step 3: Generate formatted data for visualizations and metrics
     portfolio = Portfolio(stock_data, weights)
     
-    benchmark_returns = benchmark_data.pct_change().dropna()
+    benchmark_returns = benchmark_data.pct_change().replace([np.inf, -np.inf], np.nan).dropna()
     benchmark_cumulative_returns = (1 + benchmark_returns).cumprod() - 1
     
     cumulative_returns_table = format_cumulative_returns_data(
@@ -137,6 +146,13 @@ def process_portfolio(
         f"✅ 載入成功：分析涵蓋 ({len(valid_tickers)}) 支股票"
     )
 
+def process_portfolio_from_df(df, date_range, benchmark):
+    if isinstance(df, pd.DataFrame):
+        portfolio_input = df.values.tolist()
+    else:
+        portfolio_input = df
+    
+    return process_portfolio(portfolio_input, date_range, benchmark)
 
 def create_ui():
     with gr.Blocks(title="投資組合分析") as app:
@@ -149,17 +165,20 @@ def create_ui():
         
         with gr.Row():
             with gr.Column(scale=2):
-                tickers_input = gr.Textbox(
-                    label="股票代碼",
-                    placeholder="AAPL, MSFT, GOOGL, AMZN",
-                    info="輸入以逗號分隔的股票代碼"
-                )
-                
-                weights_input = gr.Textbox(
-                    label="投資組合權重 (%)",
-                    placeholder="25, 25, 25, 25",
-                    info="輸入以百分比表示的權重（總和為 100）"
-                )
+                with gr.Accordion(label="投資組合設定", open=True):
+                    portfolio_input = gr.DataFrame(
+                        value=default_portfolio,
+                        headers=["股票代碼", "權重 (%)"],
+                        datatype=["str", "number"],
+                        show_label=True,
+                        label="投資組合（股票代碼及其權重）",
+                        interactive=True,
+                        row_count=(1, "dynamic"),
+                        col_count=(2, "fixed"),
+                        wrap=True,
+                        show_fullscreen_button=True,
+                        show_copy_button=True,
+                    )
                 
             with gr.Column(scale=1):
                 date_range = gr.Dropdown(
@@ -269,8 +288,8 @@ def create_ui():
                 )
         
         analyze_btn.click(
-            fn=process_portfolio,
-            inputs=[tickers_input, weights_input, date_range, benchmark],
+            fn=process_portfolio_from_df,
+            inputs=[portfolio_input, date_range, benchmark],
             outputs=[
                 cumulative_returns_plot,
                 cumulative_returns_table,
@@ -292,12 +311,13 @@ def create_ui():
         # Example inputs
         examples = gr.Examples(
             examples=[
-                ["AAPL, MSFT, GOOGL, AMZN", "25, 25, 25, 25", "五年", "標普 500"],
-                ["SPY, QQQ, IWM", "50, 30, 20", "五年", "標普 500"],
-                ["AAPL, BRK-B, KO, JNJ, PG", "20, 30, 20, 15, 15", "五年", "標普 500"],
+                [default_portfolio, "五年", "標普 500"],
+                # ETF portfolio
+                [[["SPY", 50], ["QQQ", 30], ["IWM", 20]], "五年", "標普 500"],
+                # Dividend portfolio
+                [[["AAPL", 20], ["BRK-B", 30], ["KO", 20], ["JNJ", 15], ["PG", 15]], "五年", "標普 500"]
             ],
-            inputs=[tickers_input, weights_input, date_range, benchmark]
-        )
+            inputs=[portfolio_input, date_range, benchmark])
     
     return app
 

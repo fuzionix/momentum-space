@@ -7,13 +7,12 @@ class InputValidationError(Exception):
         self.message = message
 
 def validate_inputs(
-    tickers_input: str,
-    weights_input: str,
+    portfolio_input: List[List],
     allow_empty: bool = False
 ) -> Tuple[List[str], List[float]]:
-    # Step 1: Parse comma-separated values
-    tickers = [t.strip().upper() for t in tickers_input.split(",") if t.strip()]
-    weights = [w.strip() for w in weights_input.split(",") if w.strip()]
+    # Step 1: Extract and clean inputs
+    tickers = [t.strip().upper() for t, _ in portfolio_input if t]
+    weights = [w for _, w in portfolio_input if w]
 
     # Step 2: Handle empty inputs
     if not tickers:
