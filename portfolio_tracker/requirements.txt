@@ -3,3 +3,4 @@ yfinance>=0.2.66
 pandas>=2.0.0
 numpy>=1.24.0
 python-dotenv>=1.0.0
+cachetools>=6.0.0

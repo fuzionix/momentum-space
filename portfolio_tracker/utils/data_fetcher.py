@@ -1,7 +1,10 @@
 import pandas as pd
 import yfinance as yf
-from functools import lru_cache
 from typing import List, Tuple
+from cachetools import TTLCache, cached
+
+CACHE_TTL = 43200  # 12 hours in seconds
+ticker_cache = TTLCache(maxsize=256, ttl=CACHE_TTL)
 
 def fetch_stock_data(
     tickers: List[str],
@@ -46,7 +49,13 @@ def validate_tickers(tickers: List[str]) -> Tuple[List[str], List[str]]:
             invalid.append(ticker)
     return valid, invalid
 
-@lru_cache(maxsize=64)
+def cache_key(ticker, period):
+    return f"{ticker}:{period}"
+
+def ticker_cache_key(ticker, period):
+    return cache_key(ticker, period)
+
+@cached(cache=ticker_cache, key=ticker_cache_key)
 def fetch_single_ticker_cached(ticker: str, period: str = "5y") -> pd.DataFrame:
     # Fetch data for a single ticker
     data = yf.download(ticker, period=period, progress=False, auto_adjust=False)
@@ -78,4 +87,4 @@ def fetch_single_ticker_cached(ticker: str, period: str = "5y") -> pd.DataFrame:
     return df
 
 def clear_cache():
-    fetch_single_ticker_cached.cache_clear()
+    ticker_cache.clear()
